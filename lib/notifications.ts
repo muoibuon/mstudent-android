@@ -1,6 +1,7 @@
 // Đặt thông báo nhắc việc ngay trên máy (local notification) — không cần server push.
 
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { planReminders, signature } from './reminders';
@@ -44,7 +45,7 @@ export async function ensurePermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(CHANNEL, {
       name: 'Nhắc việc',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: AndroidImportance.HIGH,
     });
   }
   const current = await Notifications.getPermissionsAsync();
@@ -83,15 +84,4 @@ export async function clearReminders() {
 export async function scheduledCount(): Promise<number> {
   if (!supported) return 0;
   return (await Notifications.getAllScheduledNotificationsAsync()).length;
-}
-
-/** Thông báo thử sau vài giây — dùng khi demo. */
-export async function sendTest(seconds = 5) {
-  if (!supported || !(await ensurePermission())) return false;
-  await Notifications.scheduleNotificationAsync({
-    content: { title: '🔔 MStudent', body: 'Nhắc việc trên máy đang hoạt động.' },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, channelId: CHANNEL },
-  });
-  lastSignature = ''; // lần đồng bộ sau sẽ đặt lại đầy đủ
-  return true;
 }

@@ -2,14 +2,16 @@
 // đang chọn dạng thẻ màu xếp chồng; nhấn giữ một việc để dời sang ngày khác.
 
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
-import { CategoryCharacter } from '@/components/Mascot';
+import { Meme } from '@/components/Mascot';
+import { MotionPressable, resizeContent, Reveal, taskExit } from '@/components/Motion';
 import { Button, Muted, T, TaskCard } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
-import { addDays, dayKey, fmtDayLong, fmtDayShort, fmtTime, moveToDay, startOfDay } from '@/lib/dates';
+import { addDays, dayDiff, dayKey, fmtDayLong, fmtDayShort, fmtTime, moveToDay, startOfDay } from '@/lib/dates';
 import { useStore } from '@/lib/store';
 import type { Task } from '@/lib/types';
 
@@ -62,7 +64,7 @@ export default function CalendarScreen() {
           const bg = sel ? c.active : n ? BRAND.lime : c.soft;
           const fg = sel ? (c.active === BRAND.ink ? '#FFFFFF' : BRAND.ink) : n ? BRAND.ink : c.muted;
           return (
-            <Pressable
+            <MotionPressable
               key={k}
               onPress={() => setSelected(k)}
               accessibilityRole="button"
@@ -75,33 +77,37 @@ export default function CalendarScreen() {
               <T style={{ fontSize: 12, fontFamily: k === todayKey ? FONT.semibold : FONT.regular }} color={fg}>
                 {DOW[new Date(d.getTime() + 7 * 3600e3).getUTCDay()]}
               </T>
-            </Pressable>
+            </MotionPressable>
           );
         })}
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: SCREEN_PAD, paddingTop: 16, paddingBottom: TAB_BAR_SPACE + insets.bottom }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-          <T style={{ fontFamily: FONT.semibold, fontSize: 18, textTransform: 'capitalize' }}>
-            {fmtDayLong(selected + 'T12:00:00+07:00')}
-            {selected === todayKey ? ' · Hôm nay' : ''}
-          </T>
-          {!!dayTasks.length && <Muted>{dayTasks.length} việc</Muted>}
-        </View>
-        {dayTasks.length ? (
-          <>
-            {dayTasks.map((t, i) => (
-              <TaskCard key={t.id} task={t} now={now} overlap={i > 0} onDone={() => markDone(t.id)} onLongPress={() => setMoving(t)} />
-            ))}
-            <Muted style={{ marginTop: 12 }}>Nhấn giữ một việc để dời sang ngày khác.</Muted>
-          </>
-        ) : (
-          <View style={{ borderRadius: 28, backgroundColor: c.soft, paddingVertical: 28, paddingHorizontal: 20, alignItems: 'center', gap: 8 }}>
-            <CategoryCharacter category="event" size={80} />
-            <T style={{ fontFamily: FONT.semibold }}>Ngày này rảnh rồi!</T>
-            <Muted>Không có việc nào trong ngày này.</Muted>
+        <Reveal key={selected}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <T style={{ fontFamily: FONT.semibold, fontSize: 18, textTransform: 'capitalize' }}>
+              {fmtDayLong(selected + 'T12:00:00+07:00')}
+              {selected === todayKey ? ' · Hôm nay' : ''}
+            </T>
+            {!!dayTasks.length && <Muted>{dayTasks.length} việc</Muted>}
           </View>
-        )}
+          {dayTasks.length ? (
+            <>
+              {dayTasks.map((t, i) => (
+                <Animated.View key={t.id} collapsable={false} layout={resizeContent} exiting={taskExit}>
+                  <TaskCard task={t} now={now} overlap={i > 0} onDone={() => markDone(t.id)} onLongPress={() => setMoving(t)} />
+                </Animated.View>
+              ))}
+              <Muted style={{ marginTop: 12 }}>Nhấn giữ một việc để dời sang ngày khác.</Muted>
+            </>
+          ) : (
+            <View style={{ borderRadius: 28, backgroundColor: c.soft, paddingVertical: 28, paddingHorizontal: 20, alignItems: 'center', gap: 8 }}>
+              <Meme mood="sleeping" size={86} animate />
+              <T style={{ fontFamily: FONT.semibold }}>Ngày này rảnh rồi!</T>
+              <Muted>Không có việc nào trong ngày này.</Muted>
+            </View>
+          )}
+        </Reveal>
       </ScrollView>
 
       <MoveSheet
@@ -112,8 +118,13 @@ export default function CalendarScreen() {
           const t = moving;
           setMoving(null);
           if (t?.due_at) {
-            await moveTask(t.id, moveToDay(t.due_at, k));
-            setSelected(k);
+            try {
+              await moveTask(t.id, moveToDay(t.due_at, k));
+              setOffset(Math.floor(dayDiff(startOfDay(now), k + 'T12:00:00+07:00') / 7));
+              setSelected(k);
+            } catch (e) {
+              Alert.alert('Chưa dời được việc', (e as Error).message);
+            }
           }
         }}
       />
@@ -142,9 +153,10 @@ function MoveSheet({
   onPick: (dayKey: string) => void;
 }) {
   const c = usePalette();
+  const reduceMotion = useReducedMotion();
   const options = [...Array(14)].map((_, i) => addDays(from, i));
   return (
-    <Modal visible={!!task} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={!!task} transparent animationType={reduceMotion ? 'none' : 'slide'} onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Đóng" />
       <View style={[styles.sheet, { backgroundColor: c.surface }]}>
         <T v="title" numberOfLines={2}>

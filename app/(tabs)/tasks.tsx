@@ -4,15 +4,17 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, SectionList, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
 import { EventActions, InviteCard } from '@/components/InviteCard';
 import { Meme } from '@/components/Mascot';
+import { MotionPressable, resizeContent, Reveal, taskExit } from '@/components/Motion';
 import { Display, ErrorBanner, Muted, T, TaskCard } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
-import { BUCKET_ORDER, bucketOf } from '@/lib/dates';
+import { BUCKET_ORDER, bucketOf, dayKey } from '@/lib/dates';
 import { sortInvites } from '@/lib/events';
 import type { PrefillValues } from '@/lib/prefill';
 import type { Task } from '@/lib/types';
@@ -24,6 +26,7 @@ export default function TasksScreen() {
   const { tasks, invites, profile, user, respond, now, loading, error, refresh, markDone, health } = useStore();
   const [answering, setAnswering] = useState<number | null>(null);
   const [declined, setDeclined] = useState<Task[] | null>(null); // null = chưa mở mục "Đã bỏ qua"
+  const [celebration, setCelebration] = useState<number | null>(null);
   const pending = useMemo(() => sortInvites(invites, now), [invites, now]);
   // Dữ liệu điền sẵn form: lấy từ hồ sơ + tài khoản trên máy, chỉ dùng để dựng link mở form.
   const prefill = useMemo<PrefillValues>(
@@ -81,13 +84,27 @@ export default function TasksScreen() {
     return BUCKET_ORDER.filter((b) => groups.has(b)).map((b) => ({ title: b, data: groups.get(b)! }));
   }, [tasks, now]);
 
+  useEffect(() => {
+    if (celebration === null) return;
+    const timer = setTimeout(() => setCelebration(null), 2300);
+    return () => clearTimeout(timer);
+  }, [celebration]);
+
+  async function complete(task: Task) {
+    const date = dayKey(now);
+    const lastToday = task.due_at && dayKey(task.due_at) === date &&
+      !tasks.some((other) => other.id !== task.id && other.due_at && dayKey(other.due_at) === date);
+    await markDone(task.id);
+    if (lastToday) setCelebration(task.id);
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top + 12 }}>
       <View style={{ paddingHorizontal: SCREEN_PAD, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <T v="h1" accessibilityRole="header">
           Việc của bạn
         </T>
-        <Pressable
+        <MotionPressable
           onPress={() => router.push('/share')}
           accessibilityRole="button"
           accessibilityLabel="Thêm thông báo"
@@ -96,7 +113,7 @@ export default function TasksScreen() {
           <T style={{ fontFamily: FONT.semibold, fontSize: 14 }} color={c.onActive}>
             Thêm
           </T>
-        </Pressable>
+        </MotionPressable>
       </View>
       <SectionList
         sections={sections}
@@ -114,6 +131,12 @@ export default function TasksScreen() {
         stickySectionHeadersEnabled={false}
         ListHeaderComponent={
           <View style={{ gap: 12, marginBottom: 4 }}>
+            {celebration !== null && (
+              <Reveal key={celebration} style={{ alignItems: 'center', backgroundColor: BRAND.mint, borderRadius: 24, padding: 8 }}>
+                <Meme mood="celebrating" size={90} animate />
+                <T v="title" color={BRAND.mintInk} accessibilityLiveRegion="polite">Xong hết việc hôm nay!</T>
+              </Reveal>
+            )}
             {error && <ErrorBanner message={error} onRetry={refresh} />}
             {pending.length > 0 && (
               <View style={{ gap: 10 }}>
@@ -126,23 +149,25 @@ export default function TasksScreen() {
               </View>
             )}
             {digest && (
-              <View style={{ borderRadius: 24, backgroundColor: BRAND.mint, paddingVertical: 14, paddingHorizontal: 16, gap: 6 }}>
+              <Animated.View layout={resizeContent} style={{ borderRadius: 24, backgroundColor: BRAND.mint, paddingVertical: 14, paddingHorizontal: 16, gap: 6 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Display size={20} color={BRAND.mintInk}>
                     Bản tin sáng
                   </Display>
-                  <Pressable onPress={() => setShowDigest((v) => !v)} hitSlop={12} accessibilityRole="button">
+                  <Pressable onPress={() => setShowDigest((v) => !v)} hitSlop={12} accessibilityRole="button" accessibilityState={{ expanded: showDigest }}>
                     <T style={{ fontFamily: FONT.semibold, fontSize: 12 }} color={BRAND.mintInk}>
                       {showDigest ? 'Thu gọn' : 'Mở'}
                     </T>
                   </Pressable>
                 </View>
                 {showDigest && (
-                  <T style={{ fontSize: 14, lineHeight: 20 }} color={BRAND.mintInkDeep}>
-                    {digest}
-                  </T>
+                  <Reveal>
+                    <T style={{ fontSize: 14, lineHeight: 20 }} color={BRAND.mintInkDeep}>
+                      {digest}
+                    </T>
+                  </Reveal>
                 )}
-              </View>
+              </Animated.View>
             )}
           </View>
         }
@@ -157,10 +182,12 @@ export default function TasksScreen() {
           // Thẻ ngay sau một sự kiện đã tham gia không xếp chồng (để lộ nút Đăng ký / Mở link của sự kiện đó).
           const prev = index > 0 ? section.data[index - 1] : null;
           return (
-            <View>
-              <TaskCard task={item} now={now} overlap={index > 0 && prev?.rsvp !== 'going'} onDone={() => markDone(item.id)} />
+            <Animated.View collapsable={false} layout={resizeContent} exiting={taskExit}>
+              <Reveal delay={Math.min(index, 4) * 80}>
+                <TaskCard task={item} now={now} overlap={index > 0 && prev?.rsvp !== 'going'} onDone={() => complete(item)} />
+              </Reveal>
               {item.rsvp === 'going' && <EventActions task={item} values={prefill} />}
-            </View>
+            </Animated.View>
           );
         }}
         ListFooterComponent={
@@ -186,7 +213,7 @@ export default function TasksScreen() {
         ListEmptyComponent={
           !loading && !error && pending.length === 0 ? (
             <View style={{ borderRadius: 28, backgroundColor: c.soft, padding: 24, alignItems: 'center', gap: 8, marginTop: 12 }}>
-              <Meme size={110} wave />
+              <Meme size={110} mood="sleeping" animate />
               <T v="title">Chưa có việc nào</T>
               <Muted style={{ textAlign: 'center' }}>
                 Chia sẻ một thông báo từ Zalo sang MStudent, bấm “Thêm”, hoặc kết nối nguồn tự động trong Cài đặt.

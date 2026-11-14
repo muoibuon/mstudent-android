@@ -56,11 +56,11 @@ Bản này ký bằng khoá debug: SHA-1 cho Google sẽ khác bản EAS (xem `d
 ## 5. Kiểm thử trên máy thật (bằng 4G)
 
 - [ ] Mở app → ô địa chỉ server đã điền sẵn `https://mstudent.tailec1929.ts.net` → **Đăng ký** tài khoản mới.
-- [ ] Cài đặt → **Kiểm tra AI ngay** → `✓ AI trả lời sau … ms`. Tab Trợ lý có chấm xanh **AI trực tiếp**.
+- [ ] Tab **Trợ lý** hiện **AI trực tiếp** và trả lời một câu hỏi nhập vào ô chat.
 - [ ] Dán một thông báo, ví dụ `Nộp báo cáo Lab 4 môn Mạng trước 23h59 thứ 6 tuần sau` → ra việc đúng ngày giờ.
 - [ ] Trợ lý: hỏi "tuần này có gì?" → trả lời đúng danh sách việc.
 - [ ] Mở Zalo → giữ một tin → **Chia sẻ** → MStudent → ra việc.
-- [ ] Cài đặt → **Gửi thông báo thử** → thấy thông báo (cho phép quyền thông báo).
+- [ ] Bật **Nhắc việc trên máy** trong Cài đặt và cấp quyền thông báo. Thêm một việc có hạn gần, kiểm tra số thông báo đã hẹn tăng và thông báo hiện đúng hạn.
 - [ ] **Đóng hẳn app** (vuốt khỏi đa nhiệm) → mở lại → vào thẳng, không hỏi đăng nhập. Làm 2 lần.
 - [ ] Tắt mạng → app báo lỗi rõ ràng, không treo; bật lại → dùng tiếp.
 

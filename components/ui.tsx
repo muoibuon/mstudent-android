@@ -1,21 +1,25 @@
 // Thành phần dùng chung theo MStudent UI Kit v1: không viền xám, tách khối bằng màu nền, bo 28/20/16/999,
 // chữ Lexend (Baloo 2 cho tiêu đề IN HOA), thẻ việc màu theo ưu tiên + nhân vật theo loại việc.
 
-import type { ReactNode } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   StyleSheet,
   Text,
+  Vibration,
   View,
   type StyleProp,
   type TextProps,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import Animated, { interpolateColor, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { CategoryCharacter } from '@/components/Mascot';
 import { Icon } from '@/components/Icon';
+import { MotionPressable } from '@/components/Motion';
 import { BRAND, FONT, PRIORITY_BG, PRIORITY_LABEL, RADIUS, TYPE, usePalette } from '@/constants/theme';
 import { relativeDay } from '@/lib/dates';
 import { taskSourcesLabel } from '@/lib/sources';
@@ -91,17 +95,17 @@ export function Button({
   };
   const l = look[variant];
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled || busy}
-      style={({ pressed }) => [
+      style={[
         s.btn,
         small && s.btnSmall,
         { backgroundColor: l.bg },
         l.border ? { borderWidth: 2, borderColor: l.border } : null,
-        (pressed || disabled) && { opacity: 0.55 },
+        disabled && { opacity: 0.55 },
       ]}>
       {busy ? (
         <ActivityIndicator color={l.fg} />
@@ -111,23 +115,24 @@ export function Button({
           <Text style={{ fontFamily: FONT.semibold, fontSize: small ? 13 : 16, color: l.fg }}>{label}</Text>
         </View>
       )}
-    </Pressable>
+    </MotionPressable>
   );
 }
 
 /** Chip (viên): đang chọn = nền đen/chữ trắng (tối: vàng chanh/mực); chưa chọn = nền sương. */
-export function Chip({ label, onPress, active, tone }: { label: string; onPress?: () => void; active?: boolean; tone?: string }) {
+export function Chip({ label, onPress, active, tone, disabled = false }: { label: string; onPress?: () => void; active?: boolean; tone?: string; disabled?: boolean }) {
   const c = usePalette();
   const bg = active ? c.active : (tone ?? c.soft);
   const fg = active ? (c.active === BRAND.ink ? '#FFFFFF' : BRAND.ink) : tone ? BRAND.ink : c.text;
   return (
-    <Pressable
+    <MotionPressable
       onPress={onPress}
-      style={[s.chip, { backgroundColor: bg }]}
+      disabled={disabled}
+      style={[s.chip, { backgroundColor: bg, opacity: disabled ? 0.55 : 1 }]}
       accessibilityRole={onPress ? 'button' : 'text'}
-      accessibilityState={onPress ? { selected: !!active } : undefined}>
+      accessibilityState={onPress ? { selected: !!active, disabled } : undefined}>
       <Text style={{ color: fg, fontSize: 13, fontFamily: active ? FONT.semibold : FONT.medium }}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -204,11 +209,41 @@ export function TaskCard({
 }: {
   task: Task;
   now: Date;
-  onDone?: () => void;
+  onDone?: () => Promise<void>;
   onLongPress?: () => void;
   overlap?: boolean;
 }) {
   const bg = PRIORITY_BG[task.priority];
+  const reduceMotion = useReducedMotion();
+  const completing = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const tick = useSharedValue(0);
+  const color = useSharedValue(0);
+  const tickStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(color.get(), [0, 1], [BRAND.ink, '#1A9E6A']),
+    transform: [{ scale: 1 + tick.get() * 0.25 }],
+  }));
+
+  async function finish() {
+    if (!onDone || completing.current) return;
+    completing.current = true;
+    setBusy(true);
+    color.set(reduceMotion ? 1 : withTiming(1, { duration: 120 }));
+    if (!reduceMotion) {
+      tick.set(withSequence(withSpring(1, { duration: 120, dampingRatio: 0.75 }), withSpring(0, { duration: 130, dampingRatio: 0.85 })));
+      Vibration.vibrate(20);
+    }
+    try {
+      if (!reduceMotion) await new Promise((resolve) => setTimeout(resolve, 250));
+      await onDone();
+    } catch (e) {
+      color.set(0);
+      Alert.alert('Chưa đánh dấu xong', (e as Error).message);
+    } finally {
+      completing.current = false;
+      setBusy(false);
+    }
+  }
   const meta = [
     PRIORITY_LABEL[task.priority],
     CATEGORY_LABEL[task.category],
@@ -238,14 +273,17 @@ export function TaskCard({
         <CategoryCharacter category={task.category} cardBg={bg} size={72} />
       </View>
       {onDone && (
-        <Pressable
-          onPress={onDone}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={`Đánh dấu xong: ${task.title}`}
-          style={s.done}>
-          <Icon name="check" color="#FFFFFF" size={20} stroke={2.6} />
-        </Pressable>
+        <Animated.View style={[s.done, tickStyle]}>
+          <MotionPressable
+            onPress={finish}
+            hitSlop={8}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel={`Đánh dấu xong: ${task.title}`}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch' }}>
+            <Icon name="check" color="#FFFFFF" size={20} stroke={2.6} />
+          </MotionPressable>
+        </Animated.View>
       )}
     </Pressable>
   );

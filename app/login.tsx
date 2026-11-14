@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Meme } from '@/components/Mascot';
+import { HelloStar, Meme } from '@/components/Mascot';
+import { Reveal } from '@/components/Motion';
 import { Button, Display, Muted, T } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
@@ -100,16 +101,25 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BRAND.cobalt }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
         <View style={{ paddingTop: insets.top + 28, paddingHorizontal: 24, minHeight: 360 }}>
-          <Display size={42}>{'Mọi thông báo,\ngọn trong\nmột chỗ'}</Display>
+          <Reveal>
+            <Display size={42}>{'Mọi thông báo,\ngọn trong\nmột chỗ'}</Display>
+          </Reveal>
           <View style={styles.hero} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <View style={[styles.blob, { backgroundColor: BRAND.pink, right: 24, top: 70, width: 44, height: 44 }]} />
             <View style={[styles.blob, { backgroundColor: BRAND.periwinkle, left: 0, top: 110, width: 48, height: 48 }]} />
-            <View style={styles.speech}>
-              <T style={{ fontFamily: FONT.display, fontSize: 22, lineHeight: 31 }} color={BRAND.cobalt}>
-                Bắt đầu nào!
-              </T>
-            </View>
-            <Meme size={170} wave />
+            <Reveal delay={90} style={styles.speechPosition}>
+              <View style={styles.speech}>
+                <T style={{ fontFamily: FONT.display, fontSize: 22, lineHeight: 31 }} color={BRAND.cobalt}>
+                  Bắt đầu nào!
+                </T>
+              </View>
+            </Reveal>
+            <Reveal delay={140} style={styles.star}>
+              <HelloStar />
+            </Reveal>
+            <Reveal delay={180}>
+              <Meme size={170} wave animate mood={serverErr ? 'offline' : 'happy'} />
+            </Reveal>
           </View>
         </View>
 
@@ -137,9 +147,11 @@ export default function LoginScreen() {
           </View>
 
           {register && (
-            <Field label="Tên">
-              <TextInput value={name} onChangeText={setName} placeholder="Tên của bạn" placeholderTextColor={c.muted} style={input} maxLength={100} />
-            </Field>
+            <Reveal>
+              <Field label="Tên">
+                <TextInput value={name} onChangeText={setName} placeholder="Tên của bạn" placeholderTextColor={c.muted} style={input} maxLength={100} />
+              </Field>
+            </Reveal>
           )}
           <Field label="Email">
             <TextInput
@@ -225,10 +237,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const styles = StyleSheet.create({
   hero: { height: 230, alignItems: 'center', justifyContent: 'flex-end' },
   blob: { position: 'absolute', borderRadius: 999 },
+  speechPosition: { position: 'absolute', left: 4, top: 6 },
+  star: { position: 'absolute', right: 9, top: 3 },
   speech: {
-    position: 'absolute',
-    left: 4,
-    top: 6,
     backgroundColor: BRAND.mint,
     borderRadius: 999,
     paddingHorizontal: 22,

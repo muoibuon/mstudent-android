@@ -1,8 +1,8 @@
-// Tab Cài đặt: tài khoản, kiểm tra AI, Gmail, thống kê, nhắc việc, dữ liệu demo.
+// Tab Cài đặt: tài khoản, kết nối trợ lý, nguồn thông báo và nhắc việc.
 
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card, Display, Muted, T } from '@/components/ui';
@@ -11,9 +11,9 @@ import { api, authApi } from '@/lib/api';
 import { fmtDue } from '@/lib/dates';
 import { gmailGrantErrorMessage } from '@/lib/errors';
 import { googleAvailable, googleGrantGmail } from '@/lib/google';
-import { scheduledCount, sendTest, supported as notifSupported } from '@/lib/notifications';
+import { scheduledCount, supported as notifSupported } from '@/lib/notifications';
 import { useStore } from '@/lib/store';
-import type { AiCheck, GmailStatus, PublicConfig, Stats } from '@/lib/types';
+import type { GmailStatus, PublicConfig, Stats } from '@/lib/types';
 
 export default function SettingsScreen() {
   const c = usePalette();
@@ -21,7 +21,6 @@ export default function SettingsScreen() {
   const { user, settings, updateSettings, health, error, refresh, scheduled, signOut, reloadUser, tasks } = useStore();
   const [busy, setBusy] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
-  const [ai, setAi] = useState<AiCheck | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [gmail, setGmail] = useState<GmailStatus | null>(null);
   const [cfg, setCfg] = useState<PublicConfig | null>(null);
@@ -63,7 +62,7 @@ export default function SettingsScreen() {
         throw new Error(gmailGrantErrorMessage(e));
       }
       if (!g) return;
-      if (!g.serverAuthCode) throw new Error('Google không trả mã uỷ quyền — kiểm tra webClientId và quyền Gmail');
+      if (!g.serverAuthCode) throw new Error('Chưa thể cấp quyền truy cập Gmail. Hãy thử kết nối lại.');
       setGmail(await api.gmailConnect(g.serverAuthCode));
       await reloadUser();
       setGmailMsg('Đã kết nối. Bấm “Quét Gmail” để AI đọc thư mới.');
@@ -104,17 +103,13 @@ export default function SettingsScreen() {
       <View style={{ paddingHorizontal: SCREEN_PAD, gap: 14, marginTop: 16 }}>
         <Card tone={BRAND.mint}>
           <Display size={22} color={BRAND.mintInk}>
-            AI
+            Kết nối trợ lý
           </Display>
           {health ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: health.mode === 'llm' ? '#1A9E6A' : BRAND.amberInk }} />
               <T style={{ fontFamily: FONT.semibold }} color={BRAND.mintInkDeep}>
-                {health.mode !== 'llm'
-                  ? 'Bộ luật (offline) — AI chưa bật'
-                  : health.filter_model && health.filter_model !== health.model
-                    ? `Trực tiếp · lọc: ${health.filter_model} · trả lời: ${health.model}`
-                    : `Trực tiếp · ${health.model}`}
+                {health.mode === 'llm' ? 'AI trực tiếp' : 'Đang dùng bộ luật (không dùng AI)'}
               </T>
             </View>
           ) : (
@@ -123,14 +118,6 @@ export default function SettingsScreen() {
           <T v="small" color={BRAND.mintInk} style={{ marginTop: 4 }}>
             Máy chủ: {settings.baseUrl.replace(/^https?:\/\//, '')}
           </T>
-          <View style={{ marginTop: 12, alignSelf: 'flex-start' }}>
-            <Button small variant="dark" label="Kiểm tra AI ngay" busy={busy === 'ai'} onPress={() => run('ai', async () => setAi(await api.aiCheck()))} />
-          </View>
-          {ai && (
-            <T v="small" color={ai.ok ? BRAND.mintInkDeep : c.bad} style={{ marginTop: 8 }}>
-              {ai.ok ? `AI trả lời sau ${ai.latency_ms} ms (${ai.model})` : (ai.error ?? 'AI trả kết quả không đúng')}
-            </T>
-          )}
         </Card>
 
         {stats && (
@@ -194,10 +181,10 @@ export default function SettingsScreen() {
                 />
               </View>
             </>
-          ) : !cfg?.google.gmail ? (
-            <Muted style={{ marginTop: 4 }}>Máy chủ chưa cấu hình Google Cloud (GOOGLE_WEB_CLIENT_ID, GOOGLE_CLIENT_SECRET).</Muted>
-          ) : !googleAvailable ? (
-            <Muted style={{ marginTop: 4 }}>Bản app này chưa có Google Sign-In (Expo Go/web). Hãy dùng bản build.</Muted>
+          ) : !cfg ? (
+            <Muted style={{ marginTop: 4 }}>Chưa tải được trạng thái kết nối Gmail.</Muted>
+          ) : !cfg.google.gmail || !googleAvailable ? (
+            <Muted style={{ marginTop: 4 }}>Hiện chưa thể kết nối Gmail.</Muted>
           ) : (
             <>
               <Muted style={{ marginTop: 4, marginBottom: 12 }}>
@@ -226,47 +213,10 @@ export default function SettingsScreen() {
                 />
               </View>
               <Muted>Đang hẹn {pending ?? scheduled} thông báo. Không cần mạng khi đến giờ nhắc.</Muted>
-              {Platform.OS === 'ios' && (
-                <Muted style={{ marginTop: 4 }}>
-                  iPhone: việc mới do máy chủ tự tạo có ngay khi mở app; khi app đóng, iOS quyết định lúc cập nhật nền.
-                </Muted>
-              )}
-              <View style={{ marginTop: 12 }}>
-                <Button
-                  small
-                  variant="outline"
-                  label="Gửi thông báo thử sau 5 giây"
-                  onPress={async () => {
-                    if (!(await sendTest(5))) Alert.alert('Chưa có quyền', 'Hãy cho phép MStudent gửi thông báo trong Cài đặt của máy.');
-                  }}
-                />
-              </View>
             </>
           ) : (
             <Muted style={{ marginTop: 4 }}>Bản web không hỗ trợ nhắc việc. Hãy dùng app trên iOS/Android.</Muted>
           )}
-        </Card>
-
-        <Card>
-          <T v="title">Dữ liệu demo</T>
-          <Muted style={{ marginTop: 4, marginBottom: 12 }}>
-            Xoá dữ liệu của bạn trên máy chủ và nạp 9 thông báo mẫu (email, LMS, Zalo, có cả spam).
-          </Muted>
-          <Button
-            small
-            variant="dark"
-            label="Nạp dữ liệu demo"
-            busy={busy === 'seed'}
-            onPress={() =>
-              run('seed', async () => {
-                const rs = await api.seed();
-                const made = rs.reduce((a, r) => a + r.created.length, 0);
-                const skip = rs.filter((r) => !r.relevant).length;
-                await refresh();
-                Alert.alert('Đã nạp', `${rs.length} thông báo → ${made} việc, bỏ qua ${skip} tin không liên quan.`);
-              })
-            }
-          />
         </Card>
 
         {showDelete ? (

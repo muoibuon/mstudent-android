@@ -3,11 +3,13 @@
 
 import { router, useLocalSearchParams } from 'expo-router';
 import { useShareIntentContext } from 'expo-share-intent';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
+import { Meme, ThinkingDots } from '@/components/Mascot';
+import { Reveal } from '@/components/Motion';
 import { Button, Chip, Display, ModePill, Muted, T, TaskCard } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
@@ -38,15 +40,18 @@ export default function ShareScreen() {
   const [text, setText] = useState(shared);
   const [source, setSource] = useState<Source>(hasShareIntent ? 'zalo' : (link?.source ?? preset ?? 'manual'));
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<IngestResult | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<{ body: string; source: Source; result?: IngestResult; error?: string } | null>(null);
+  const currentAnalysis = analysis?.body === text.trim() && analysis.source === source ? analysis : null;
+  const result = currentAnalysis?.result;
+  const err = currentAnalysis?.error;
+  const analyzing = useRef(false);
   const [lastShared, setLastShared] = useState(shared);
   if (shared && shared !== lastShared) {
     // Nội dung chia sẻ mới đến khi màn hình đang mở → thay thế (pattern "derive state from props").
     setLastShared(shared);
     setText(shared);
     setSource(hasShareIntent ? 'zalo' : (link?.source ?? 'zalo'));
-    setResult(null);
+    setAnalysis(null);
   }
 
   function close() {
@@ -56,14 +61,19 @@ export default function ShareScreen() {
   }
 
   async function analyze() {
+    const body = text.trim();
+    if (!body || analyzing.current) return;
+    analyzing.current = true;
     setBusy(true);
-    setErr(null);
+    setAnalysis(null);
     try {
-      setResult(await api.ingest(text.trim(), source));
-      refresh();
+      const response = await api.ingest(body, source);
+      setAnalysis({ body, source, result: response });
+      void refresh();
     } catch (e) {
-      setErr((e as Error).message);
+      setAnalysis({ body, source, error: (e as Error).message });
     } finally {
+      analyzing.current = false;
       setBusy(false);
     }
   }
@@ -99,8 +109,9 @@ export default function ShareScreen() {
           value={text}
           onChangeText={(v) => {
             setText(v);
-            setResult(null);
+            setAnalysis(null);
           }}
+          editable={!busy}
           multiline
           placeholder="vd: Thứ 6 tuần này nộp bài tập tuần 9 nhé"
           placeholderTextColor={c.muted}
@@ -109,14 +120,24 @@ export default function ShareScreen() {
         />
         <View style={styles.sources} accessibilityRole="radiogroup" accessibilityLabel="Nguồn">
           {SOURCES.map((s) => (
-            <Chip key={s.key} label={s.label} active={source === s.key} onPress={() => setSource(s.key)} />
+            <Chip key={s.key} label={s.label} active={source === s.key} disabled={busy} onPress={() => {
+              setSource(s.key);
+              if (s.key !== source) setAnalysis(null);
+            }} />
           ))}
         </View>
         <Button label="Phân tích bằng AI" busy={busy} disabled={!text.trim()} onPress={analyze} />
+        {busy && (
+          <Reveal style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Meme mood="thinking" size={48} />
+            <T v="small" accessibilityLiveRegion="polite">Đang phân tích thông báo</T>
+            <ThinkingDots color={c.muted} />
+          </Reveal>
+        )}
         {err && <T v="small" color={c.bad}>{err}</T>}
 
         {result && (
-          <View style={{ gap: 10 }}>
+          <Reveal style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <View style={[styles.status, { backgroundColor: c.active }]}>
                 <Icon name="check" color={c.onActive} size={14} stroke={2.6} />
@@ -127,7 +148,9 @@ export default function ShareScreen() {
               <ModePill live={result.mode === 'llm'} label={result.mode === 'cache' ? 'Không chạy lại agent' : undefined} />
             </View>
             {tasks.map((t, i) => (
-              <TaskCard key={`${t.id}-${i}`} task={t} now={now} overlap={i > 0} />
+              <Reveal key={`${t.id}-${i}`} delay={Math.min(i, 4) * 80}>
+                <TaskCard task={t} now={now} />
+              </Reveal>
             ))}
             {!tasks.length && <Muted>{result.reason}</Muted>}
             {result.updated.length > 0 && <Muted>Đã cập nhật việc có sẵn thay vì tạo trùng.</Muted>}
@@ -137,17 +160,17 @@ export default function ShareScreen() {
             </T>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {result.trace.map((s, i) => (
-                <View key={i} style={[styles.agent, { backgroundColor: s.error ? BRAND.amber : BRAND.mint }]}>
+                <Reveal key={i} delay={80 + Math.min(i, 5) * 50} style={[styles.agent, { backgroundColor: s.error ? BRAND.amber : BRAND.mint }]}>
                   <T style={{ fontFamily: FONT.semibold, fontSize: 12 }} color={BRAND.ink}>
                     {AGENT_LABEL[s.agent] ?? s.agent}
                   </T>
                   <T style={{ fontSize: 12 }} color={s.error ? BRAND.amberInk : BRAND.mintInk}>
                     {s.error ? 'lỗi → luật' : `${(s.ms / 1000).toFixed(1).replace('.', ',')} giây`}
                   </T>
-                </View>
+                </Reveal>
               ))}
             </View>
-          </View>
+          </Reveal>
         )}
 
         <View style={{ marginTop: 8 }}>

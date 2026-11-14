@@ -3,10 +3,14 @@
 
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { Tabs } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { Icon, type IconName } from '@/components/Icon';
+import { MotionPressable, TAB_SPRING } from '@/components/Motion';
 import { usePalette } from '@/constants/theme';
 
 const TABS: Record<string, { label: string; icon: IconName }> = {
@@ -19,9 +23,22 @@ const TABS: Record<string, { label: string; icon: IconName }> = {
 function FloatingTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const c = usePalette();
   const insets = useSafeAreaInsets();
+  const [width, setWidth] = useState(0);
+  const [settled, setSettled] = useState(state.index);
+  const track = useSharedValue(state.index);
+  const cell = width / state.routes.length;
+  const slide = useAnimatedStyle(() => ({ transform: [{ translateX: cell * (track.get() + 0.5) - 26 }] }));
+
+  useEffect(() => {
+    track.set(withSpring(state.index, TAB_SPRING, (finished) => {
+      if (finished) scheduleOnRN(setSettled, state.index);
+    }));
+  }, [state.index, track]);
+
   return (
     <View
       accessibilityRole="tablist"
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={{
         position: 'absolute',
         left: 24,
@@ -31,7 +48,6 @@ function FloatingTabBar({ state, navigateToTab }: BottomTabBarProps) {
         borderRadius: 34,
         backgroundColor: c.surface,
         flexDirection: 'row',
-        justifyContent: 'space-around',
         alignItems: 'center',
         shadowColor: '#141414',
         shadowOpacity: c.bg === '#FFFFFF' ? 0.12 : 0.5,
@@ -39,12 +55,17 @@ function FloatingTabBar({ state, navigateToTab }: BottomTabBarProps) {
         shadowOffset: { width: 0, height: 8 },
         elevation: 8,
       }}>
+      {width > 0 && (
+        <Animated.View pointerEvents="none" style={[{
+          position: 'absolute', left: 0, top: 8, width: 52, height: 52, borderRadius: 26, backgroundColor: c.active,
+        }, slide]} />
+      )}
       {state.routes.map((route, i) => {
         const tab = TABS[route.name];
         if (!tab) return null;
         const focused = state.index === i;
         return (
-          <Pressable
+          <MotionPressable
             key={route.key}
             accessibilityRole="tab"
             accessibilityLabel={tab.label}
@@ -53,15 +74,13 @@ function FloatingTabBar({ state, navigateToTab }: BottomTabBarProps) {
               if (!focused) navigateToTab(route.key);
             }}
             style={{
-              width: 52,
+              flex: 1,
               height: 52,
-              borderRadius: 26,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: focused ? c.active : 'transparent',
             }}>
-            <Icon name={tab.icon} color={focused ? c.onActive : c.muted} />
-          </Pressable>
+            <Icon name={tab.icon} color={settled === i ? c.onActive : c.muted} />
+          </MotionPressable>
         );
       })}
     </View>

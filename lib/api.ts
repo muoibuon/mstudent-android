@@ -8,7 +8,6 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import type {
-  AiCheck,
   ChatResponse,
   ChatTurn,
   GmailStatus,
@@ -211,8 +210,6 @@ export const api = {
   chat: (message: string, history: ChatTurn[]) => call<ChatResponse>('/api/chat', post({ message, history }), 90000),
   digest: () => call<{ mode: string; text: string }>('/api/digest', {}, 60000),
   stats: () => call<Stats>('/api/stats'),
-  seed: () => call<IngestResult[]>('/api/demo/seed', post(), 120000),
-  aiCheck: () => call<AiCheck>('/api/ai/check', post(), 60000),
   gmailStatus: () => call<GmailStatus>('/api/google/status'),
   gmailConnect: (serverAuthCode: string) => call<GmailStatus>('/api/google/connect', post({ server_auth_code: serverAuthCode })),
   gmailSync: (days = 7) => call<GmailSyncResult>('/api/google/gmail/sync', post({ days }), 180000),

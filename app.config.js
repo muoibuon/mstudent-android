@@ -15,7 +15,16 @@ module.exports = ({ config }) => {
   );
 
   // Android: release build chặn HTTP thường trừ khi bật usesCleartextTraffic.
-  plugins.push(['expo-build-properties', { android: { usesCleartextTraffic: !httpsOnly } }]);
+  plugins.push([
+    'expo-build-properties',
+    {
+      android: {
+        usesCleartextTraffic: !httpsOnly,
+        // Room instantiates WorkManager's generated database through its no-argument constructor.
+        extraProguardRules: '-keep,allowoptimization class androidx.work.impl.WorkDatabase_Impl { public <init>(); }',
+      },
+    },
+  ]);
 
   // Google Sign-In gốc. Android không cần plugin (đăng ký SHA-1 trong Google Cloud Console là đủ).
   // iOS bắt buộc có URL scheme; chưa đặt biến môi trường thì bỏ qua plugin để build vẫn chạy

@@ -122,14 +122,6 @@ export interface Stats {
   by_source: Record<string, number>;
 }
 
-export interface AiCheck {
-  ok: boolean;
-  mode: 'llm' | 'offline';
-  model: string;
-  latency_ms?: number;
-  error?: string;
-}
-
 export interface GmailStatus {
   connected: boolean;
   email?: string;

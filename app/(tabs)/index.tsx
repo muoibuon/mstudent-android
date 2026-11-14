@@ -2,15 +2,17 @@
 // gợi ý nhanh, ô nhập + nút gửi tròn.
 
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
-import { Meme, MemeAvatar } from '@/components/Mascot';
+import { Meme, MemeAvatar, ThinkingDots } from '@/components/Mascot';
+import { MotionPressable, Reveal } from '@/components/Motion';
 import { Chip, Display, ErrorBanner, ModePill, T, timeLabel } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
+import { ASSISTANT_COMMANDS, runAssistantCommand, type AssistantCommand } from '@/lib/assistantCommands';
 import { bucketOf } from '@/lib/dates';
 import { useStore } from '@/lib/store';
 import type { ChatTurn, ToolCall } from '@/lib/types';
@@ -21,9 +23,9 @@ interface Msg {
   text: string;
   calls?: ToolCall[];
   mode?: string;
+  command?: string;
 }
 
-const SUGGESTIONS = ['Hôm nay cần làm gì?', 'Tuần này có gì?', 'Lịch thi sắp tới', 'Bản tin', 'Thêm: thứ 6 tuần sau nộp đồ án OOP'];
 const TZ = 'Asia/Ho_Chi_Minh';
 
 function greeting(now: Date): string {
@@ -47,28 +49,52 @@ export default function ChatScreen() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
   const list = useRef<FlatList<Msg>>(null);
 
   const today = useMemo(() => tasks.filter((t) => bucketOf(t.due_at, now) === 'Hôm nay'), [tasks, now]);
   const urgent = today.filter((t) => t.priority === 'high').length;
   const soonest = [...today].sort((a, b) => (a.due_at ?? '').localeCompare(b.due_at ?? ''))[0];
+  const worried = tasks.some((t) => {
+    if (!t.due_at) return false;
+    const remaining = Date.parse(t.due_at) - now.getTime();
+    return remaining < 0 || (t.priority === 'high' && remaining < 2 * 3600e3);
+  });
 
-  async function send(text = input) {
-    const message = text.trim();
-    if (!message || busy) return;
-    const history: ChatTurn[] = msgs.slice(-20).map((m) => ({ role: m.role, content: m.text }));
-    setInput('');
-    setMsgs((m) => [...m, { id: `u${Date.now()}`, role: 'user', text: message }]);
+  async function reply(message: string, action: () => Promise<Pick<Msg, 'text' | 'calls' | 'mode'>>, command?: AssistantCommand) {
+    if (sending.current) return;
+    sending.current = true;
+    const id = Date.now();
+    setMsgs((m) => [...m, { id: `u${id}`, role: 'user', text: message, command: command?.id }]);
     setBusy(true);
     try {
-      const r = await api.chat(message, history);
-      setMsgs((m) => [...m, { id: `a${Date.now()}`, role: 'assistant', text: r.reply, calls: r.tool_calls, mode: r.mode }]);
-      if (r.tool_calls.some((t) => t.tool !== 'list_tasks')) refresh();
+      const result = await action();
+      setMsgs((m) => [...m, { id: `a${id}`, role: 'assistant', ...result, command: command?.id }]);
     } catch (e) {
-      setMsgs((m) => [...m, { id: `e${Date.now()}`, role: 'assistant', text: `Lỗi: ${(e as Error).message}` }]);
+      setMsgs((m) => [...m, { id: `e${id}`, role: 'assistant', text: `Lỗi: ${(e as Error).message}`, command: command?.id }]);
     } finally {
+      sending.current = false;
       setBusy(false);
     }
+  }
+
+  function send() {
+    const message = input.trim();
+    if (!message || sending.current) return;
+    const history: ChatTurn[] = msgs
+      .filter((msg) => !msg.command)
+      .slice(-20)
+      .map((msg) => ({ role: msg.role, content: msg.text }));
+    setInput('');
+    void reply(message, async () => {
+      const result = await api.chat(message, history);
+      if (result.tool_calls.some((tool) => tool.tool !== 'list_tasks')) void refresh();
+      return { text: result.reply, calls: result.tool_calls, mode: result.mode };
+    });
+  }
+
+  function runCommand(command: AssistantCommand) {
+    void reply(command.label, () => runAssistantCommand(command, api, now), command);
   }
 
   const dateLabel = now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', timeZone: TZ });
@@ -91,7 +117,7 @@ export default function ChatScreen() {
         </T>
       </View>
 
-      <Pressable
+      <MotionPressable
         onPress={() => router.navigate('/tasks')}
         accessibilityRole="button"
         accessibilityLabel={`${today.length} việc hôm nay. Mở danh sách việc`}
@@ -105,9 +131,9 @@ export default function ChatScreen() {
           </T>
         </View>
         <View style={{ marginRight: -6, marginBottom: -30 }}>
-          <Meme size={96} />
+          <Meme size={96} animate mood={error || health?.mode === 'offline' ? 'offline' : worried ? 'worried' : 'happy'} />
         </View>
-      </Pressable>
+      </MotionPressable>
 
       {error && (
         <View style={{ paddingHorizontal: SCREEN_PAD, paddingTop: 10 }}>
@@ -121,7 +147,9 @@ export default function ChatScreen() {
         keyExtractor={(m) => m.id}
         contentContainerStyle={{ paddingHorizontal: SCREEN_PAD, paddingTop: 16, gap: 10 }}
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })}
-        renderItem={({ item }) => (item.id === 'typing' ? <Typing /> : <Bubble msg={item} />)}
+        renderItem={({ item }) => (
+          <Reveal>{item.id === 'typing' ? <Typing /> : <Bubble msg={item} />}</Reveal>
+        )}
       />
 
       <ScrollView
@@ -130,9 +158,10 @@ export default function ChatScreen() {
         style={{ flexGrow: 0 }}
         contentContainerStyle={{ gap: 8, paddingHorizontal: SCREEN_PAD, paddingBottom: 10 }}
         keyboardShouldPersistTaps="handled">
-        {SUGGESTIONS.map((s, i) => (
-          <Chip key={s} label={s} tone={i === 0 ? BRAND.lime : undefined} onPress={() => send(s)} />
+        {ASSISTANT_COMMANDS.map((command, i) => (
+          <Chip key={command.id} label={command.label} tone={i === 0 ? BRAND.lime : undefined} disabled={busy} onPress={() => runCommand(command)} />
         ))}
+        <Chip label="Dán thông báo" disabled={busy} onPress={() => router.push('/share')} />
       </ScrollView>
       <View style={[styles.inputRow, { paddingHorizontal: SCREEN_PAD, paddingBottom: TAB_BAR_SPACE + insets.bottom - 8 }]}>
         <TextInput
@@ -141,17 +170,21 @@ export default function ChatScreen() {
           placeholder="Hỏi hoặc dán thông báo…"
           placeholderTextColor={c.muted}
           multiline
+          maxLength={4000}
           style={[styles.input, { color: c.text, backgroundColor: c.soft, fontFamily: FONT.regular }]}
           accessibilityLabel="Tin nhắn cho trợ lý"
         />
-        <Pressable
+        <MotionPressable
           onPress={() => send()}
           disabled={busy || !input.trim()}
           accessibilityRole="button"
           accessibilityLabel="Gửi"
-          style={[styles.send, { backgroundColor: c.active, opacity: busy || !input.trim() ? 0.5 : 1 }]}>
+          style={[
+            styles.send,
+            { backgroundColor: c.active, opacity: busy || !input.trim() ? 0.5 : 1 },
+          ]}>
           <Icon name="send" color={c.onActive} size={22} stroke={2.4} />
-        </Pressable>
+        </MotionPressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -171,6 +204,7 @@ function Bubble({ msg }: { msg: Msg }) {
     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '92%' }}>
       <MemeAvatar />
       <View style={[styles.bubble, styles.theirs, { backgroundColor: c.soft }]}>
+        {msg.command && <T v="label" color={c.muted} style={{ marginBottom: 6 }}>Kết quả lệnh</T>}
         <T>{msg.text}</T>
         {msg.mode === 'offline' && (
           <View style={{ marginTop: 8 }}>
@@ -200,28 +234,11 @@ function Bubble({ msg }: { msg: Msg }) {
 /** Ba chấm nảy "đang trả lời" (tắt chuyển động khi máy bật Giảm chuyển động). */
 function Typing() {
   const c = usePalette();
-  const [dots] = useState(() => [0, 1, 2].map(() => new Animated.Value(0.35)));
-  useEffect(() => {
-    const anims = dots.map((v, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 150),
-          Animated.timing(v, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.timing(v, { toValue: 0.35, duration: 300, useNativeDriver: true }),
-          Animated.delay(450 - i * 150),
-        ]),
-      ),
-    );
-    anims.forEach((a) => a.start());
-    return () => anims.forEach((a) => a.stop());
-  }, [dots]);
   return (
     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }} accessibilityLabel="Trợ lý đang trả lời" accessibilityRole="progressbar">
-      <MemeAvatar />
+      <Meme mood="thinking" size={38} />
       <View style={[styles.bubble, styles.theirs, { backgroundColor: c.soft, flexDirection: 'row', gap: 6, paddingVertical: 16 }]}>
-        {dots.map((v, i) => (
-          <Animated.View key={i} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.text, opacity: v }} />
-        ))}
+        <ThinkingDots color={c.text} />
       </View>
     </View>
   );

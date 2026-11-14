@@ -220,12 +220,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const markDone = useCallback(
     async (id: number) => {
-      setTasks((ts) => ts.filter((t) => t.id !== id)); // cập nhật lạc quan
-      try {
-        await api.done(id);
-      } finally {
-        refresh();
-      }
+      await api.done(id);
+      setTasks((ts) => ts.filter((t) => t.id !== id));
+      void refresh();
     },
     [refresh],
   );
