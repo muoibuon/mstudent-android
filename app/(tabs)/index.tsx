@@ -2,6 +2,7 @@
 // gợi ý nhanh, ô nhập + nút gửi tròn.
 
 import { router } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import { useMemo, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,9 +14,10 @@ import { Chip, Display, ErrorBanner, ModePill, T, timeLabel } from '@/components
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
 import { ASSISTANT_COMMANDS, runAssistantCommand, type AssistantCommand } from '@/lib/assistantCommands';
+import { validateChatFile } from '@/lib/chatFile';
 import { bucketOf } from '@/lib/dates';
 import { useStore } from '@/lib/store';
-import type { ChatTurn, ToolCall } from '@/lib/types';
+import type { ChatFile, ChatTurn, ToolCall } from '@/lib/types';
 
 interface Msg {
   id: string;
@@ -24,6 +26,8 @@ interface Msg {
   calls?: ToolCall[];
   mode?: string;
   command?: string;
+  context?: string;
+  calendar?: boolean;
 }
 
 const TZ = 'Asia/Ho_Chi_Minh';
@@ -48,6 +52,8 @@ export default function ChatScreen() {
   );
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
+  const [file, setFile] = useState<ChatFile | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
   const list = useRef<FlatList<Msg>>(null);
@@ -78,13 +84,55 @@ export default function ChatScreen() {
     }
   }
 
+  async function pickFile() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
+      if (result.canceled) return;
+      const selected = result.assets[0];
+      const validation = validateChatFile(selected);
+      setChatError(validation);
+      setFile(validation ? null : selected);
+    } catch {
+      setChatError('Không mở được tệp. Hãy thử chọn lại.');
+    }
+  }
+
+  async function sendAttachment(attachment: ChatFile, message: string, history: ChatTurn[]) {
+    if (sending.current) return;
+    sending.current = true;
+    setChatError(null);
+    setBusy(true);
+    try {
+      const result = await api.chatFile(attachment, message, history);
+      const id = Date.now();
+      setMsgs((m) => [
+        ...m,
+        { id: `u${id}`, role: 'user', text: `📎 ${attachment.name}${message ? `\n${message}` : ''}`, context: result.document_context ?? undefined },
+        { id: `a${id}`, role: 'assistant', text: result.reply, calls: result.tool_calls, mode: result.mode,
+          calendar: result.tool_calls.some((tool) => tool.tool === 'import_schedule') && !result.reply.startsWith('Chưa') },
+      ]);
+      setFile(null);
+      setInput('');
+      if (result.tool_calls.some((tool) => tool.tool !== 'list_tasks')) void refresh();
+    } catch (e) {
+      setChatError((e as Error).message);
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  }
+
   function send() {
     const message = input.trim();
-    if (!message || sending.current) return;
+    if ((!message && !file) || sending.current) return;
     const history: ChatTurn[] = msgs
       .filter((msg) => !msg.command)
       .slice(-20)
-      .map((msg) => ({ role: msg.role, content: msg.text }));
+      .map((msg) => ({ role: msg.role, content: msg.context ?? msg.text }));
+    if (file) {
+      void sendAttachment(file, message, history);
+      return;
+    }
     setInput('');
     void reply(message, async () => {
       const result = await api.chat(message, history);
@@ -163,11 +211,30 @@ export default function ChatScreen() {
         ))}
         <Chip label="Dán thông báo" disabled={busy} onPress={() => router.push('/share')} />
       </ScrollView>
-      <View style={[styles.inputRow, { paddingHorizontal: SCREEN_PAD, paddingBottom: TAB_BAR_SPACE + insets.bottom - 8 }]}>
+      <View style={{ paddingHorizontal: SCREEN_PAD, paddingBottom: TAB_BAR_SPACE + insets.bottom - 8, gap: 8 }}>
+        {file && (
+          <View style={[styles.fileChip, { backgroundColor: c.soft }]}>
+            <T v="small" numberOfLines={1} style={{ flex: 1 }}>📎 {file.name}</T>
+            <MotionPressable onPress={() => setFile(null)} accessibilityRole="button" accessibilityLabel={`Bỏ tệp ${file.name}`} style={styles.removeFile}>
+              <Icon name="close" color={c.text} size={18} />
+            </MotionPressable>
+          </View>
+        )}
+        {chatError && <T v="small" color={c.bad} accessibilityRole="alert">{chatError}</T>}
+        <View style={styles.inputRow}>
+        <MotionPressable
+          onPress={pickFile}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Thêm tệp vào trò chuyện"
+          accessibilityHint="Chọn tệp PDF, Word, Excel, CSV hoặc TXT, tối đa 5 MB"
+          style={[styles.addFile, { backgroundColor: c.soft, opacity: busy ? 0.5 : 1 }]}>
+          <Icon name="plus" color={c.text} size={26} stroke={2.4} />
+        </MotionPressable>
         <TextInput
           value={input}
           onChangeText={setInput}
-          placeholder="Hỏi hoặc dán thông báo…"
+          placeholder={file ? 'Hỏi về tệp này…' : 'Hỏi hoặc dán thông báo…'}
           placeholderTextColor={c.muted}
           multiline
           maxLength={4000}
@@ -176,15 +243,16 @@ export default function ChatScreen() {
         />
         <MotionPressable
           onPress={() => send()}
-          disabled={busy || !input.trim()}
+          disabled={busy || (!input.trim() && !file)}
           accessibilityRole="button"
           accessibilityLabel="Gửi"
           style={[
             styles.send,
-            { backgroundColor: c.active, opacity: busy || !input.trim() ? 0.5 : 1 },
+            { backgroundColor: c.active, opacity: busy || (!input.trim() && !file) ? 0.5 : 1 },
           ]}>
           <Icon name="send" color={c.onActive} size={22} stroke={2.4} />
         </MotionPressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -211,6 +279,7 @@ function Bubble({ msg }: { msg: Msg }) {
             <ModePill live={false} />
           </View>
         )}
+        {msg.calendar && <Chip label="Mở Lịch" onPress={() => router.navigate('/calendar')} />}
         {!!msg.calls?.length && (
           <Pressable onPress={() => setOpen((o) => !o)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
             <Icon name="tool" color={c.muted} size={14} />
@@ -268,6 +337,9 @@ const styles = StyleSheet.create({
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
   },
   inputRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
+  addFile: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  fileChip: { alignSelf: 'flex-start', maxWidth: '100%', minHeight: 40, borderRadius: 20, paddingLeft: 14, paddingRight: 4, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  removeFile: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, minHeight: 52, maxHeight: 120, borderRadius: 26, paddingHorizontal: 18, paddingTop: 15, paddingBottom: 15, fontSize: 15 },
   send: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
 });
