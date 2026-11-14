@@ -27,6 +27,24 @@ mới. Server tạm mất kết nối cũng không bị đẩy ra màn hình đ�
 | **Expo Go** | `npx expo start` → quét QR | Chat, việc, lịch, nhắc việc. Không có Google, Gmail, Share | Thử nhanh khi code |
 | **Build cài máy (Release)** | `npx eas-cli@latest build --profile preview --platform android` → APK (xem [`docs/HANDOFF_ANDROID.md`](docs/HANDOFF_ANDROID.md)) | Đầy đủ, chạy độc lập không cần máy tính bật Metro | **Demo chấm điểm** |
 
+## Cài đặt trên điện thoại thật
+
+### Android (repo này)
+
+1. Cài Node.js, chạy `npm ci` trong thư mục repo, rồi đăng nhập Expo bằng `npx eas-cli@latest login`.
+2. Chạy `npx eas-cli@latest build --profile preview --platform android`. Profile `preview` tạo APK và điền sẵn địa chỉ backend từ `eas.json`.
+3. Mở link hoặc quét QR của bản build trên điện thoại Android, tải APK, cho phép trình duyệt cài ứng dụng rồi mở MStudent. Nếu đã tải APK về máy tính, có thể bật gỡ lỗi USB và chạy `adb install -r path/to/MStudent.apk`.
+
+Lệnh build local và cách kiểm thử: [Build và kiểm thử Android](docs/HANDOFF_ANDROID.md).
+
+### iPhone (repo riêng)
+
+1. Clone [mstudent-ios](https://github.com/muoibuon/mstudent-ios). Trên Mac, cài Node.js và Xcode; kết nối iPhone bằng cáp, chọn **Tin cậy máy tính** và bật **Chế độ nhà phát triển** trên iPhone.
+2. Thêm Apple ID trong **Xcode → Settings → Accounts** rồi lấy Team ID. Chạy `npm ci` trong repo iOS. Với Apple ID miễn phí (Personal Team), đặt `MSTUDENT_IOS_FREE_SIGNING=1` **trước khi prebuild** để tắt Share Extension; sau đó build bản Release và cài bằng `xcrun devicectl`. Dùng tài khoản Apple Developer trả phí thì bỏ biến này.
+3. Mở MStudent trên iPhone. Bản Release chạy độc lập, không cần Metro. Lệnh build và cài đầy đủ: [Build và cài lên iPhone](https://github.com/muoibuon/mstudent-ios/blob/dev/docs/BUILD_IOS.md).
+
+Cả hai bản cần điện thoại truy cập được backend; xem mục [Kết nối tới backend](#kết-nối-tới-backend-chạy-trên-máy-tính).
+
 Biến môi trường khi build:
 
 | Biến | Ý nghĩa |
