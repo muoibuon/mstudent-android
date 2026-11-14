@@ -18,6 +18,7 @@ import { CategoryCharacter } from '@/components/Mascot';
 import { Icon } from '@/components/Icon';
 import { BRAND, FONT, PRIORITY_BG, PRIORITY_LABEL, RADIUS, TYPE, usePalette } from '@/constants/theme';
 import { relativeDay } from '@/lib/dates';
+import { parseInline } from '@/lib/markdown';
 import { taskSourcesLabel } from '@/lib/sources';
 import { CATEGORY_LABEL, type Task } from '@/lib/types';
 
@@ -27,6 +28,23 @@ type Variant = keyof typeof TYPE;
 export function T({ v = 'body', color, style, ...rest }: TextProps & { v?: Variant; color?: string; style?: StyleProp<TextStyle> }) {
   const c = usePalette();
   return <Text {...rest} style={[TYPE[v], { color: color ?? c.text }, style]} />;
+}
+
+/** Văn bản từ AI: hiện **đậm** thành chữ đậm, bỏ các ký hiệu markdown khác (lib/markdown.ts). */
+export function RichText({ text, color, style }: { text: string; color?: string; style?: StyleProp<TextStyle> }) {
+  return (
+    <T color={color} style={style}>
+      {parseInline(text).map((s, i) =>
+        s.bold ? (
+          <Text key={i} style={{ fontFamily: FONT.semibold }}>
+            {s.text}
+          </Text>
+        ) : (
+          s.text
+        ),
+      )}
+    </T>
+  );
 }
 
 /** Tiêu đề IN HOA Baloo 2 (màn chào, khối nổi bật). */
@@ -201,12 +219,15 @@ export function TaskCard({
   onDone,
   onLongPress,
   overlap,
+  spaced,
 }: {
   task: Task;
   now: Date;
   onDone?: () => void;
   onLongPress?: () => void;
   overlap?: boolean;
+  /** Không chồng nhưng vẫn là thẻ thứ hai trở đi: cách thẻ trên 10px. */
+  spaced?: boolean;
 }) {
   const bg = PRIORITY_BG[task.priority];
   const meta = [
@@ -219,7 +240,7 @@ export function TaskCard({
     <Pressable
       onLongPress={onLongPress}
       accessibilityHint={onLongPress ? 'Nhấn giữ để đổi hạn' : undefined}
-      style={[s.taskCard, { backgroundColor: bg }, overlap && { marginTop: -24 }]}>
+      style={[s.taskCard, { backgroundColor: bg }, overlap ? { marginTop: -24 } : spaced ? { marginTop: 10 } : null]}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
         <Text style={[TYPE.title, { color: BRAND.ink, flex: 1 }]} numberOfLines={2}>
           {task.title}
@@ -268,7 +289,8 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.card,
     paddingTop: 22,
     paddingHorizontal: 18,
-    paddingBottom: 18,
+    // Chừa đáy cho nhân vật (ló lên ~48px) để nhân vật không đè lên chữ khi tên việc dài 2 dòng.
+    paddingBottom: 52,
     overflow: 'hidden',
     gap: 4,
   },
@@ -276,7 +298,8 @@ const s = StyleSheet.create({
   done: {
     position: 'absolute',
     right: 16,
-    bottom: 16,
+    // Cao hơn phần bị thẻ xếp chồng phía dưới che (24px) để nút luôn bấm được.
+    bottom: 30,
     width: 44,
     height: 44,
     borderRadius: 22,

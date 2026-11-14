@@ -9,13 +9,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '@/components/Icon';
 import { EventActions, InviteCard } from '@/components/InviteCard';
 import { Meme } from '@/components/Mascot';
-import { Display, ErrorBanner, Muted, T, TaskCard } from '@/components/ui';
+import { Display, ErrorBanner, Muted, RichText, T, TaskCard } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
 import { BUCKET_ORDER, bucketOf } from '@/lib/dates';
 import { sortInvites } from '@/lib/events';
 import type { PrefillValues } from '@/lib/prefill';
 import type { Task } from '@/lib/types';
+import { stackOverlap } from '@/lib/stack';
 import { useStore } from '@/lib/store';
 
 export default function TasksScreen() {
@@ -138,9 +139,7 @@ export default function TasksScreen() {
                   </Pressable>
                 </View>
                 {showDigest && (
-                  <T style={{ fontSize: 14, lineHeight: 20 }} color={BRAND.mintInkDeep}>
-                    {digest}
-                  </T>
+                  <RichText text={digest} style={{ fontSize: 14, lineHeight: 20 }} color={BRAND.mintInkDeep} />
                 )}
               </View>
             )}
@@ -154,11 +153,18 @@ export default function TasksScreen() {
           </View>
         )}
         renderItem={({ item, index, section }) => {
-          // Thẻ ngay sau một sự kiện đã tham gia không xếp chồng (để lộ nút Đăng ký / Mở link của sự kiện đó).
+          // Không xếp chồng: thẻ ngay sau một sự kiện đã tham gia (để lộ nút Đăng ký / Mở link), hoặc hai thẻ cùng màu
+          // (cùng mức ưu tiên) vì chồng lên nhau sẽ trông như một khối.
           const prev = index > 0 ? section.data[index - 1] : null;
           return (
             <View>
-              <TaskCard task={item} now={now} overlap={index > 0 && prev?.rsvp !== 'going'} onDone={() => markDone(item.id)} />
+              <TaskCard
+                task={item}
+                now={now}
+                overlap={prev?.rsvp !== 'going' && stackOverlap(prev, item)}
+                spaced={index > 0}
+                onDone={() => markDone(item.id)}
+              />
               {item.rsvp === 'going' && <EventActions task={item} values={prefill} />}
             </View>
           );

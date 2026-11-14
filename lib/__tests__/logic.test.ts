@@ -3,6 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { cleanMarkdown, parseInline } from '../markdown';
+import { stackOverlap } from '../stack';
 import { bucketOf, dayDiff, dayKey, fmtDue, moveToDay, relativeDay, startOfDay } from '../dates';
 import { MAX_SCHEDULED, planReminders, signature } from '../reminders';
 import type { Task } from '../types';
@@ -285,4 +287,27 @@ test('newInvites / inviteNotice', () => {
   assert.deepEqual(newInvites([1], [a, b]).map((t) => t.id), [2]);
   assert.deepEqual(inviteNotice(a, 'T6 20/11 14:00'), { title: 'Sự kiện mới: Seminar AI', body: 'Rất hợp ngành · T6 20/11 14:00 · Tham gia không?' });
   assert.equal(inviteNotice(b, '').body, 'chưa rõ giờ · Tham gia không?');
+});
+
+// ---- markdown từ LLM ----
+
+test('parseInline tách **đậm** và bỏ ký hiệu', () => {
+  assert.deepEqual(parseInline('**Gợi ý ưu tiên:** Bắt đầu học bài'), [
+    { text: 'Gợi ý ưu tiên:', bold: true },
+    { text: ' Bắt đầu học bài', bold: false },
+  ]);
+  assert.deepEqual(parseInline('Không có markdown'), [{ text: 'Không có markdown', bold: false }]);
+  assert.deepEqual(parseInline('thiếu cặp ** ở đây'), [{ text: 'thiếu cặp  ở đây', bold: false }]);
+});
+
+test('cleanMarkdown bỏ tiêu đề, đổi gạch đầu dòng, giữ **đậm**', () => {
+  assert.equal(cleanMarkdown('## Hôm nay\n* Lab 4\n- Thi GK'), 'Hôm nay\n• Lab 4\n• Thi GK');
+  assert.equal(cleanMarkdown('Hạn `23:59` và *nhớ nộp*'), 'Hạn 23:59 và nhớ nộp');
+  assert.equal(cleanMarkdown('**giữ nguyên**'), '**giữ nguyên**');
+});
+
+test('stackOverlap chỉ xếp chồng hai thẻ khác màu', () => {
+  assert.equal(stackOverlap(null, { priority: 'high' }), false);
+  assert.equal(stackOverlap({ priority: 'high' }, { priority: 'high' }), false);
+  assert.equal(stackOverlap({ priority: 'high' }, { priority: 'low' }), true);
 });

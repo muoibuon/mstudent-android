@@ -10,6 +10,7 @@ import { CategoryCharacter } from '@/components/Mascot';
 import { Button, Muted, T, TaskCard } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
 import { addDays, dayKey, fmtDayLong, fmtDayShort, fmtTime, moveToDay, startOfDay } from '@/lib/dates';
+import { stackOverlap } from '@/lib/stack';
 import { useStore } from '@/lib/store';
 import type { Task } from '@/lib/types';
 
@@ -91,7 +92,15 @@ export default function CalendarScreen() {
         {dayTasks.length ? (
           <>
             {dayTasks.map((t, i) => (
-              <TaskCard key={t.id} task={t} now={now} overlap={i > 0} onDone={() => markDone(t.id)} onLongPress={() => setMoving(t)} />
+              <TaskCard
+                key={t.id}
+                task={t}
+                now={now}
+                overlap={stackOverlap(dayTasks[i - 1], t)}
+                spaced={i > 0}
+                onDone={() => markDone(t.id)}
+                onLongPress={() => setMoving(t)}
+              />
             ))}
             <Muted style={{ marginTop: 12 }}>Nhấn giữ một việc để dời sang ngày khác.</Muted>
           </>

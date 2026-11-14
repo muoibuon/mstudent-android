@@ -7,8 +7,9 @@ import { Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollVi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
+import { useKeyboardVisible } from '@/components/useKeyboardVisible';
 import { Meme, MemeAvatar } from '@/components/Mascot';
-import { Chip, Display, ErrorBanner, ModePill, T, timeLabel } from '@/components/ui';
+import { Chip, Display, ErrorBanner, ModePill, RichText, T, timeLabel } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
 import { bucketOf } from '@/lib/dates';
@@ -34,6 +35,7 @@ function greeting(now: Date): string {
 export default function ChatScreen() {
   const c = usePalette();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardVisible();
   const { refresh, error, health, user, tasks, now } = useStore();
   const name = (user?.name || user?.email?.split('@')[0] || '').split(' ').slice(-1)[0];
   const welcome: Msg = useMemo(
@@ -77,37 +79,42 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top + 12 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ paddingHorizontal: SCREEN_PAD, gap: 2 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <T v="small" color={c.muted} style={{ textTransform: 'capitalize' }}>
-            {dateLabel}
-          </T>
-          {health && <ModePill live={health.mode === 'llm'} />}
-        </View>
-        <T v="h1" accessibilityRole="header">
-          {greeting(now)}
-          {name ? `, ${name}` : ''}
-        </T>
-      </View>
+      behavior="padding">
+      {/* Bàn phím mở: ẩn lời chào và khung "N việc hôm nay" để còn chỗ cho tin nhắn. */}
+      {!keyboard && (
+        <>
+          <View style={{ paddingHorizontal: SCREEN_PAD, gap: 2 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <T v="small" color={c.muted} style={{ textTransform: 'capitalize' }}>
+                {dateLabel}
+              </T>
+              {health && <ModePill live={health.mode === 'llm'} />}
+            </View>
+            <T v="h1" accessibilityRole="header">
+              {greeting(now)}
+              {name ? `, ${name}` : ''}
+            </T>
+          </View>
 
-      <Pressable
-        onPress={() => router.navigate('/tasks')}
-        accessibilityRole="button"
-        accessibilityLabel={`${today.length} việc hôm nay. Mở danh sách việc`}
-        style={[styles.todayCard, { marginHorizontal: SCREEN_PAD }]}>
-        <View style={{ gap: 4, flex: 1 }}>
-          <Display size={26}>{`${today.length} việc hôm nay`}</Display>
-          <T v="small" color="#FFFFFF">
-            {today.length
-              ? `${urgent} việc gấp${soonest?.due_at ? ` · gần nhất ${timeLabel(soonest.due_at, now)}` : ''}`
-              : 'Hôm nay rảnh — xem việc tuần này'}
-          </T>
-        </View>
-        <View style={{ marginRight: -6, marginBottom: -30 }}>
-          <Meme size={96} />
-        </View>
-      </Pressable>
+          <Pressable
+            onPress={() => router.navigate('/tasks')}
+            accessibilityRole="button"
+            accessibilityLabel={`${today.length} việc hôm nay. Mở danh sách việc`}
+            style={[styles.todayCard, { marginHorizontal: SCREEN_PAD }]}>
+            <View style={{ gap: 4, flex: 1 }}>
+              <Display size={26}>{`${today.length} việc hôm nay`}</Display>
+              <T v="small" color="#FFFFFF">
+                {today.length
+                  ? `${urgent} việc gấp${soonest?.due_at ? ` · gần nhất ${timeLabel(soonest.due_at, now)}` : ''}`
+                  : 'Hôm nay rảnh — xem việc tuần này'}
+              </T>
+            </View>
+            <View style={{ marginRight: -6, marginBottom: -30 }}>
+              <Meme size={96} />
+            </View>
+          </Pressable>
+        </>
+      )}
 
       {error && (
         <View style={{ paddingHorizontal: SCREEN_PAD, paddingTop: 10 }}>
@@ -124,17 +131,20 @@ export default function ChatScreen() {
         renderItem={({ item }) => (item.id === 'typing' ? <Typing /> : <Bubble msg={item} />)}
       />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={{ gap: 8, paddingHorizontal: SCREEN_PAD, paddingBottom: 10 }}
-        keyboardShouldPersistTaps="handled">
-        {SUGGESTIONS.map((s, i) => (
-          <Chip key={s} label={s} tone={i === 0 ? BRAND.lime : undefined} onPress={() => send(s)} />
-        ))}
-      </ScrollView>
-      <View style={[styles.inputRow, { paddingHorizontal: SCREEN_PAD, paddingBottom: TAB_BAR_SPACE + insets.bottom - 8 }]}>
+      {/* Đang gõ thì ẩn gợi ý cho gọn. */}
+      {!input.trim() && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ flexGrow: 0 }}
+          contentContainerStyle={{ gap: 8, paddingHorizontal: SCREEN_PAD, paddingBottom: 10 }}
+          keyboardShouldPersistTaps="handled">
+          {SUGGESTIONS.map((s, i) => (
+            <Chip key={s} label={s} tone={i === 0 ? BRAND.lime : undefined} onPress={() => send(s)} />
+          ))}
+        </ScrollView>
+      )}
+      <View style={[styles.inputRow, { paddingHorizontal: SCREEN_PAD, paddingBottom: keyboard ? 10 : TAB_BAR_SPACE + insets.bottom - 8 }]}>
         <TextInput
           value={input}
           onChangeText={setInput}
@@ -171,7 +181,7 @@ function Bubble({ msg }: { msg: Msg }) {
     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '92%' }}>
       <MemeAvatar />
       <View style={[styles.bubble, styles.theirs, { backgroundColor: c.soft }]}>
-        <T>{msg.text}</T>
+        <RichText text={msg.text} />
         {msg.mode === 'offline' && (
           <View style={{ marginTop: 8 }}>
             <ModePill live={false} />

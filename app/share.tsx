@@ -4,7 +4,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useShareIntentContext } from 'expo-share-intent';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
@@ -12,6 +12,7 @@ import { Button, Chip, Display, ModePill, Muted, T, TaskCard } from '@/component
 import { BRAND, FONT, SCREEN_PAD, usePalette } from '@/constants/theme';
 import { api } from '@/lib/api';
 import { parseShareLink } from '@/lib/sharelink';
+import { stackOverlap } from '@/lib/stack';
 import { useStore } from '@/lib/store';
 import { type IngestResult, type Source } from '@/lib/types';
 
@@ -80,7 +81,7 @@ export default function ShareScreen() {
           : 'Đã tạo việc';
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BRAND.cobalt }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BRAND.cobalt }} behavior="padding">
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Display size={32}>{hasShareIntent ? 'Chia sẻ thông báo' : 'Dán thông báo'}</Display>
         <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Đóng" style={styles.close}>
@@ -127,7 +128,7 @@ export default function ShareScreen() {
               <ModePill live={result.mode === 'llm'} label={result.mode === 'cache' ? 'Không chạy lại agent' : undefined} />
             </View>
             {tasks.map((t, i) => (
-              <TaskCard key={`${t.id}-${i}`} task={t} now={now} overlap={i > 0} />
+              <TaskCard key={`${t.id}-${i}`} task={t} now={now} overlap={stackOverlap(tasks[i - 1], t)} spaced={i > 0} />
             ))}
             {!tasks.length && <Muted>{result.reason}</Muted>}
             {result.updated.length > 0 && <Muted>Đã cập nhật việc có sẵn thay vì tạo trùng.</Muted>}
