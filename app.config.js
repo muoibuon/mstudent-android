@@ -15,7 +15,13 @@ module.exports = ({ config }) => {
   );
 
   // Android: release build chặn HTTP thường trừ khi bật usesCleartextTraffic.
-  plugins.push(['expo-build-properties', { android: { usesCleartextTraffic: !httpsOnly } }]);
+  // R8 (bản Release) xoá hàm khởi tạo của WorkDatabase_Impl mà WorkManager (expo-background-task) gọi bằng
+  // reflection → crash ngay khi mở app (NoSuchMethodException: WorkDatabase_Impl.<init>). Giữ lại các lớp đó.
+  const extraProguardRules = [
+    '-keep class * extends androidx.room.RoomDatabase { <init>(); }',
+    '-keep class androidx.work.impl.** { *; }',
+  ].join('\n');
+  plugins.push(['expo-build-properties', { android: { usesCleartextTraffic: !httpsOnly, extraProguardRules } }]);
 
   // Google Sign-In gốc. Android không cần plugin (đăng ký SHA-1 trong Google Cloud Console là đủ).
   // iOS bắt buộc có URL scheme; chưa đặt biến môi trường thì bỏ qua plugin để build vẫn chạy
