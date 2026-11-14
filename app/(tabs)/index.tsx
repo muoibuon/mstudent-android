@@ -7,6 +7,7 @@ import { Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollVi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
+import { useKeyboardVisible } from '@/components/useKeyboardVisible';
 import { Meme, MemeAvatar } from '@/components/Mascot';
 import { Chip, Display, ErrorBanner, ModePill, T, timeLabel } from '@/components/ui';
 import { BRAND, FONT, SCREEN_PAD, TAB_BAR_SPACE, usePalette } from '@/constants/theme';
@@ -34,6 +35,7 @@ function greeting(now: Date): string {
 export default function ChatScreen() {
   const c = usePalette();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardVisible();
   const { refresh, error, health, user, tasks, now } = useStore();
   const name = (user?.name || user?.email?.split('@')[0] || '').split(' ').slice(-1)[0];
   const welcome: Msg = useMemo(
@@ -77,7 +79,7 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top + 12 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior="padding">
       <View style={{ paddingHorizontal: SCREEN_PAD, gap: 2 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <T v="small" color={c.muted} style={{ textTransform: 'capitalize' }}>
@@ -134,7 +136,7 @@ export default function ChatScreen() {
           <Chip key={s} label={s} tone={i === 0 ? BRAND.lime : undefined} onPress={() => send(s)} />
         ))}
       </ScrollView>
-      <View style={[styles.inputRow, { paddingHorizontal: SCREEN_PAD, paddingBottom: TAB_BAR_SPACE + insets.bottom - 8 }]}>
+      <View style={[styles.inputRow, { paddingHorizontal: SCREEN_PAD, paddingBottom: keyboard ? 10 : TAB_BAR_SPACE + insets.bottom - 8 }]}>
         <TextInput
           value={input}
           onChangeText={setInput}

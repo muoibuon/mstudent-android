@@ -2,7 +2,7 @@
 
 import { router } from 'expo-router';
 import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { Button, Card, Muted, T, Title } from '@/components/ui';
 import { BRAND, FONT, usePalette } from '@/constants/theme';
@@ -154,122 +154,124 @@ export default function SourcesScreen() {
   };
 
   return (
-    <ScrollView
-      ref={scroll}
-      contentContainerStyle={{ padding: 16, gap: 14 }}
-      style={{ backgroundColor: c.bg }}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} />}>
-      <Muted>
-        Kết nối một lần — MStudent tự đọc nguồn và tạo việc kể cả khi bạn không mở app. Chỉ đọc, không gửi hay sửa gì ở
-        nguồn.
-      </Muted>
-      {notice ? (
-        <Card>
-          <Text style={{ color: c.text }}>{notice}</Text>
-        </Card>
-      ) : null}
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <ScrollView
+        ref={scroll}
+        contentContainerStyle={{ padding: 16, gap: 14 }}
+        style={{ backgroundColor: c.bg }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh} />}>
+        <Muted>
+          Kết nối một lần — MStudent tự đọc nguồn và tạo việc kể cả khi bạn không mở app. Chỉ đọc, không gửi hay sửa gì ở
+          nguồn.
+        </Muted>
+        {notice ? (
+          <Card>
+            <Text style={{ color: c.text }}>{notice}</Text>
+          </Card>
+        ) : null}
 
-      <View style={{ gap: 10 }}>
-        <T v="label" color={c.muted}>
-          KẾT NỐI NGUỒN
-        </T>
-        <View style={styles.tiles}>
-          <SourceTile
-            title="Gmail"
-            sub={hasGmail ? 'Đã kết nối · thư mới tự thành việc' : googleReady ? 'Chỉ đọc · email trường, Teams, Udemy' : 'Máy chủ chưa bật Google'}
-            tone={BRAND.lime}
-            done={hasGmail}
-            busy={busy === 'google'}
-            onPress={() => connectGoogle({ gmail: true, classroom: hasClassroom })}
-          />
-          <SourceTile
-            title="Classroom"
-            sub={hasClassroom ? 'Đã cho phép · bài tập có hạn' : googleReady ? 'Bài tập, hạn nộp, thông báo lớp' : 'Máy chủ chưa bật Google'}
-            tone={BRAND.periwinkle}
-            done={hasClassroom}
-            busy={busy === 'google'}
-            onPress={() => connectGoogle({ gmail: hasGmail, classroom: true })}
-          />
-          <SourceTile title="Bảng lớp" sub="Link Google Sheets deadline chung" tone={BRAND.pink} onPress={() => startAdd('sheet')} />
-          <SourceTile title="Lịch LMS" sub="Link xuất lịch Moodle (.ics)" tone={BRAND.mint} onPress={() => startAdd('ics')} />
-          <SourceTile
-            title="Zalo"
-            sub={Platform.OS === 'ios' ? 'Dán tin, hoặc dùng Phím tắt' : 'Dán tin, hoặc Chia sẻ → MStudent'}
-            onPress={() => router.push({ pathname: '/share', params: { source: 'zalo' } })}
-          />
-          <SourceTile
-            title="Email trường"
-            sub="Chuyển tiếp Outlook → Gmail"
-            onPress={() => Linking.openURL('https://outlook.office.com/mail/options/mail/forwarding')}
-          />
-        </View>
-      </View>
-
-      <Card>
-        <Title>Tài khoản Google</Title>
-        {google.length ? (
-          google.map((s) => <SourceRow key={s.id} s={s} now={now} busy={busy} onSync={syncNow} onToggle={toggle} />)
-        ) : (
-          <Muted>Chưa kết nối. Bấm ô Gmail hoặc Classroom ở trên.</Muted>
-        )}
-      </Card>
-
-      <Card>
-        <Title>Bảng lớp và lịch LMS</Title>
-        {links.length === 0 && <Muted>Chưa có nguồn nào.</Muted>}
-        {links.map((s) => (
-          <SourceRow
-            key={s.id}
-            s={s}
-            now={now}
-            busy={busy}
-            onSync={syncNow}
-            onToggle={toggle}
-            onRemove={remove}
-          />
-        ))}
-        {adding && (
-          <View style={{ gap: 8, marginTop: 10 }}>
-            <Muted>{ADD_HELP[adding]}</Muted>
-            <TextInput
-              value={url}
-              onChangeText={setUrl}
-              placeholder={adding === 'sheet' ? 'https://docs.google.com/spreadsheets/d/…' : 'https://…/calendar/export….ics'}
-              placeholderTextColor={c.muted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              style={[styles.input, { color: c.text, borderColor: c.line, backgroundColor: c.panel }]}
+        <View style={{ gap: 10 }}>
+          <T v="label" color={c.muted}>
+            KẾT NỐI NGUỒN
+          </T>
+          <View style={styles.tiles}>
+            <SourceTile
+              title="Gmail"
+              sub={hasGmail ? 'Đã kết nối · thư mới tự thành việc' : googleReady ? 'Chỉ đọc · email trường, Teams, Udemy' : 'Máy chủ chưa bật Google'}
+              tone={BRAND.lime}
+              done={hasGmail}
+              busy={busy === 'google'}
+              onPress={() => connectGoogle({ gmail: true, classroom: hasClassroom })}
             />
-            <Button label="Thêm và đồng bộ ngay" onPress={add} busy={busy === 'add'} disabled={!url.trim()} />
+            <SourceTile
+              title="Classroom"
+              sub={hasClassroom ? 'Đã cho phép · bài tập có hạn' : googleReady ? 'Bài tập, hạn nộp, thông báo lớp' : 'Máy chủ chưa bật Google'}
+              tone={BRAND.periwinkle}
+              done={hasClassroom}
+              busy={busy === 'google'}
+              onPress={() => connectGoogle({ gmail: hasGmail, classroom: true })}
+            />
+            <SourceTile title="Bảng lớp" sub="Link Google Sheets deadline chung" tone={BRAND.pink} onPress={() => startAdd('sheet')} />
+            <SourceTile title="Lịch LMS" sub="Link xuất lịch Moodle (.ics)" tone={BRAND.mint} onPress={() => startAdd('ics')} />
+            <SourceTile
+              title="Zalo"
+              sub={Platform.OS === 'ios' ? 'Dán tin, hoặc dùng Phím tắt' : 'Dán tin, hoặc Chia sẻ → MStudent'}
+              onPress={() => router.push({ pathname: '/share', params: { source: 'zalo' } })}
+            />
+            <SourceTile
+              title="Email trường"
+              sub="Chuyển tiếp Outlook → Gmail"
+              onPress={() => Linking.openURL('https://outlook.office.com/mail/options/mail/forwarding')}
+            />
           </View>
-        )}
-      </Card>
-
-      <Card>
-        <Title>Email trường, Teams, Udemy</Title>
-        <Muted>
-          Đặt quy tắc tự chuyển tiếp email từ hộp thư trường (Outlook) sang Gmail đã kết nối: Outlook web → Cài đặt → Thư →
-          Chuyển tiếp → bật và nhập địa chỉ Gmail. Thông báo của Teams và Udemy cũng đến bằng email nên sẽ được xử lý tự
-          động.
-        </Muted>
-        <View style={{ marginTop: 8 }}>
-          <Button
-            label="Mở cài đặt chuyển tiếp Outlook"
-            variant="ghost"
-            small
-            onPress={() => Linking.openURL('https://outlook.office.com/mail/options/mail/forwarding')}
-          />
         </View>
-      </Card>
 
-      {Platform.OS === 'ios' && (
-        <Muted>
-          iPhone: việc mới do máy chủ tạo sẽ có ngay khi bạn mở app; khi app đóng, iOS tự quyết định lúc cho MStudent
-          cập nhật nền nên có thể chậm.
-        </Muted>
-      )}
-    </ScrollView>
+        <Card>
+          <Title>Tài khoản Google</Title>
+          {google.length ? (
+            google.map((s) => <SourceRow key={s.id} s={s} now={now} busy={busy} onSync={syncNow} onToggle={toggle} />)
+          ) : (
+            <Muted>Chưa kết nối. Bấm ô Gmail hoặc Classroom ở trên.</Muted>
+          )}
+        </Card>
+
+        <Card>
+          <Title>Bảng lớp và lịch LMS</Title>
+          {links.length === 0 && <Muted>Chưa có nguồn nào.</Muted>}
+          {links.map((s) => (
+            <SourceRow
+              key={s.id}
+              s={s}
+              now={now}
+              busy={busy}
+              onSync={syncNow}
+              onToggle={toggle}
+              onRemove={remove}
+            />
+          ))}
+          {adding && (
+            <View style={{ gap: 8, marginTop: 10 }}>
+              <Muted>{ADD_HELP[adding]}</Muted>
+              <TextInput
+                value={url}
+                onChangeText={setUrl}
+                placeholder={adding === 'sheet' ? 'https://docs.google.com/spreadsheets/d/…' : 'https://…/calendar/export….ics'}
+                placeholderTextColor={c.muted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                style={[styles.input, { color: c.text, borderColor: c.line, backgroundColor: c.panel }]}
+              />
+              <Button label="Thêm và đồng bộ ngay" onPress={add} busy={busy === 'add'} disabled={!url.trim()} />
+            </View>
+          )}
+        </Card>
+
+        <Card>
+          <Title>Email trường, Teams, Udemy</Title>
+          <Muted>
+            Đặt quy tắc tự chuyển tiếp email từ hộp thư trường (Outlook) sang Gmail đã kết nối: Outlook web → Cài đặt → Thư →
+            Chuyển tiếp → bật và nhập địa chỉ Gmail. Thông báo của Teams và Udemy cũng đến bằng email nên sẽ được xử lý tự
+            động.
+          </Muted>
+          <View style={{ marginTop: 8 }}>
+            <Button
+              label="Mở cài đặt chuyển tiếp Outlook"
+              variant="ghost"
+              small
+              onPress={() => Linking.openURL('https://outlook.office.com/mail/options/mail/forwarding')}
+            />
+          </View>
+        </Card>
+
+        {Platform.OS === 'ios' && (
+          <Muted>
+            iPhone: việc mới do máy chủ tạo sẽ có ngay khi bạn mở app; khi app đóng, iOS tự quyết định lúc cho MStudent
+            cập nhật nền nên có thể chậm.
+          </Muted>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

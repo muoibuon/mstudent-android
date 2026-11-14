@@ -4,7 +4,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useShareIntentContext } from 'expo-share-intent';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/Icon';
@@ -80,7 +80,7 @@ export default function ShareScreen() {
           : 'Đã tạo việc';
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BRAND.cobalt }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BRAND.cobalt }} behavior="padding">
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Display size={32}>{hasShareIntent ? 'Chia sẻ thông báo' : 'Dán thông báo'}</Display>
         <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Đóng" style={styles.close}>

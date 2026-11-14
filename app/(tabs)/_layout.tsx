@@ -7,6 +7,7 @@ import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/Icon';
+import { useKeyboardVisible } from '@/components/useKeyboardVisible';
 import { usePalette } from '@/constants/theme';
 
 const TABS: Record<string, { label: string; icon: IconName }> = {
@@ -19,6 +20,9 @@ const TABS: Record<string, { label: string; icon: IconName }> = {
 function FloatingTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const c = usePalette();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardVisible();
+  // Bàn phím mở: ẩn thanh tab nổi để nó không đè lên ô đang nhập.
+  if (keyboard) return null;
   return (
     <View
       accessibilityRole="tablist"

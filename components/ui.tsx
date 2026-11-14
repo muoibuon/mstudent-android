@@ -268,7 +268,8 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.card,
     paddingTop: 22,
     paddingHorizontal: 18,
-    paddingBottom: 18,
+    // Chừa đáy cho nhân vật (ló lên ~48px) để nhân vật không đè lên chữ khi tên việc dài 2 dòng.
+    paddingBottom: 52,
     overflow: 'hidden',
     gap: 4,
   },
@@ -276,7 +277,8 @@ const s = StyleSheet.create({
   done: {
     position: 'absolute',
     right: 16,
-    bottom: 16,
+    // Cao hơn phần bị thẻ xếp chồng phía dưới che (24px) để nút luôn bấm được.
+    bottom: 30,
     width: 44,
     height: 44,
     borderRadius: 22,

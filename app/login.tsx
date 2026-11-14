@@ -2,7 +2,7 @@
 // Đăng nhập / Đăng ký. Địa chỉ máy chủ đã điền sẵn (bản build) → ẩn sau "Đổi máy chủ"; lỗi kết nối thì tự mở ra.
 
 import { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Meme } from '@/components/Mascot';
@@ -97,7 +97,7 @@ export default function LoginScreen() {
   const live = server?.health.mode === 'llm';
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BRAND.cobalt }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BRAND.cobalt }} behavior="padding">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
         <View style={{ paddingTop: insets.top + 28, paddingHorizontal: 24, minHeight: 360 }}>
           <Display size={42}>{'Mọi thông báo,\ngọn trong\nmột chỗ'}</Display>
